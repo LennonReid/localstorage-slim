@@ -48,5 +48,41 @@ let test;
 // eslint-disable-next-line no-undef
 if (dev) {
   // ls.config.encrypt = true;
+  ls.config.cb = (k) => {
+    alert('Callback executed for key -> ' + k);
+  };
   test = ['ff', { true: 343 }, 2];
+  // console.log('test :>> ', test);
+
+  ls.set(
+    'testItem',
+    { testObj: 'value' },
+    {
+      ttl: 3,
+      //cb: (k) => {
+      // alert('Callback executed for key -> ' + k);
+      //},
+    }
+  );
+
+  ls.set(
+    'nik',
+    { testObj: 'value' },
+    {
+      ttl: 5,
+      //cb: (k) => {
+      // alert('Callback executed for key -> ' + k);
+      //},
+    }
+  );
+
+  ls.set(
+    'amy',
+    { testObj: 'value' },
+    {
+      cb: (k) => {
+        alert('Override for key -> ' + k);
+      },
+    }
+  );
 }

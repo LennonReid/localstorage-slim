@@ -24,8 +24,8 @@ const supportsLS = (): boolean => {
     hasLS = false;
   }
 
-  // flush once on init
-  flush();
+  // poll/flush/setup callbacks on init
+  poll();
 
   return hasLS;
 };
@@ -43,6 +43,14 @@ const obfus: Encrypter | Decrypter = (str, key, encrypt = true) =>
 
 const decrypter: Decrypter = (str, key) => {
   return obfus(str, key, false);
+};
+
+// Callback polling
+let cbRefs: NodeJS.Timeout[] = [];
+const poll = (forceFlush = false): void => {
+  cbRefs.forEach((ref) => clearTimeout(ref));
+  cbRefs = [];
+  flush(forceFlush);
 };
 
 const config: LocalStorageConfig = {
@@ -79,7 +87,16 @@ const set = <T = unknown>(key: string, value: T, localConfig: LocalStorageConfig
       }
     }
 
+    // If a callback was specified store it
+    if (_conf.ttl && APX in (val as Record<string, unknown>) && _conf.cb && typeof _conf.cb === 'function') {
+      (val as Record<string, unknown>).cb = `${_conf.cb}`;
+    }
+
     localStorage.setItem(key, JSON.stringify(val));
+
+    if (_conf.ttl && APX in (val as Record<string, unknown>)) {
+      poll();
+    }
   } catch {
     // Sometimes stringify fails due to circular refs
     return false;
@@ -143,9 +160,17 @@ const flush = (force = false): false | void => {
       // Some packages write strings to localStorage that are not converted by JSON.stringify(), so we need to ignore it
       return;
     }
-    // flush only if ttl was set and is/is not expired
-    if (isObject(item) && APX in item && (Date.now() > item.ttl || force)) {
-      localStorage.removeItem(key);
+
+    // if ttl is set
+    if (isObject(item) && APX in item) {
+      // flush if has/has not expired
+      if (Date.now() > item.ttl || force) {
+        localStorage.removeItem(key);
+      } else if (item.cb) {
+        // setup callback
+        const cb = new Function('key', `localStorage.removeItem(key);(${item.cb})(key)`);
+        cbRefs.push((setTimeout(cb, item.ttl - Date.now(), key) as unknown) as NodeJS.Timeout);
+      }
     }
   });
 };
@@ -164,7 +189,7 @@ export default {
   config,
   set,
   get,
-  flush,
   clear,
   remove,
+  poll,
 };
